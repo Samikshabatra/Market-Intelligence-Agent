@@ -96,7 +96,13 @@ class MarketIntelligenceAgent:
         seed = seed_plan(query)
         seed_task = asyncio.create_task(executor.run(seed, deadline=deadline, round_index=0))
         plan = await self._planner.plan(
-            query, timeout=self._slice(deadline, self.settings.planning_budget_seconds)
+            query,
+            timeout=self._slice(
+                deadline,
+                self.settings.planning_budget_seconds,
+                reserve=self.settings.search_budget_seconds
+                + self.settings.synthesis_budget_seconds,
+            ),
         )
         timings.planning_ms = (time.perf_counter() - stage) * 1000
         trace = list(plan.trace())
@@ -140,7 +146,11 @@ class MarketIntelligenceAgent:
                     previous=plan,
                     gaps=decision.gaps,
                     covered_kinds=set(store.distinct_kinds()),
-                    timeout=self._slice(deadline, self.settings.planning_budget_seconds),
+                    timeout=self._slice(
+                        deadline,
+                        self.settings.planning_budget_seconds,
+                        reserve=self.settings.synthesis_budget_seconds,
+                    ),
                 )
                 fallback_report = await executor.run(
                     fallback_plan, deadline=deadline, round_index=1
@@ -175,7 +185,11 @@ class MarketIntelligenceAgent:
                 "synthesis ran at reduced effort to stay inside the latency budget"
             )
         brief, conflicts = await self._synthesizer.synthesize(
-            query, store, timeout=self._slice(deadline, self.settings.synthesis_budget_seconds)
+            query,
+            store,
+            timeout=self._slice(
+                deadline, self.settings.synthesis_budget_seconds, reserve=1.5, capped=False
+            ),
         )
         timings.synthesis_ms = (time.perf_counter() - stage) * 1000
 
@@ -225,9 +239,31 @@ class MarketIntelligenceAgent:
     def _seconds_left(deadline: float) -> float:
         return max(0.0, deadline - time.monotonic())
 
-    def _slice(self, deadline: float, stage_budget: float) -> float:
-        """Never let a stage wait longer than the run has left."""
-        return max(1.0, min(stage_budget, self._seconds_left(deadline)))
+    def _slice(
+        self,
+        deadline: float,
+        stage_budget: float,
+        *,
+        reserve: float = 0.0,
+        capped: bool = True,
+    ) -> float:
+        """How long this stage may wait for.
+
+        The section 6 per-stage figures are a schedule, not a contract - the contract is
+        the 60s total. Holding a stage to its nominal slice while the run has 45 seconds
+        of unused budget left just converts a working model call into a timeout and a
+        silent fallback, which is what happened with a model slower than the 5s planning
+        figure assumed. A stage may therefore use slack left by earlier stages, up to
+        `stage_slack_multiplier` times its own budget, as long as it leaves `reserve`
+        seconds for the stages that still have to run.
+        """
+        available = self._seconds_left(deadline) - reserve
+        if not capped:
+            # The terminal stage has nothing to leave time for, so a ceiling on it only
+            # discards budget: it would time out at its slice while the run still had
+            # seconds in hand, then fall back to a worse answer.
+            return max(1.0, available)
+        return max(1.0, min(stage_budget * self.settings.stage_slack_multiplier, available))
 
     @staticmethod
     def _ingest(store: EvidenceStore, plan: SearchPlan, report: ExecutionReport) -> None:

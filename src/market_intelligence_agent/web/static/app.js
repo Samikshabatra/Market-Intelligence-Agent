@@ -61,6 +61,22 @@ function fmtWhen(iso) {
   return then.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+// The model cites per claim, inline: "... costs $10 [s14]" or "[s12, s14]". Those are
+// more precise than a list at the end of the section, so they are rendered as footnote
+// numbers and the section-level marks are only shown when the text carries none.
+const INLINE_CITATION = /\[\s*(s\d+(?:\s*,\s*s\d+)*)\s*\]/g;
+
+function resolveInlineCitations(text, index) {
+  let replaced = false;
+  const out = String(text || "").replace(INLINE_CITATION, (whole, ids) => {
+    const numbers = ids.split(",").map((s) => s.trim()).filter((s) => s in index);
+    if (!numbers.length) return "";           // an id this run never issued
+    replaced = true;
+    return numbers.map((id) => `[${index[id]}]`).join("");
+  });
+  return { text: out.replace(/\s+([.,;:])/g, "$1").replace(/ {2,}/g, " ").trim(), replaced };
+}
+
 function meterClass(confidence, status) {
   if (status === "conflicting") return "meter__fill meter__fill--alert";
   if (status === "unverified" || confidence < 0.55) return "meter__fill meter__fill--warn";
@@ -315,15 +331,23 @@ function renderTab(run) {
   return renderTrace(result, detail);
 }
 
+function citationMarks(section, index) {
+  const marks = section.citations.filter((id) => id in index).map((id) => `[${index[id]}]`);
+  return marks.length ? ` ${marks.join("")}` : "";
+}
+
 function renderSummary(result, detail) {
   const sections = detail.sections || {};
   const sourceById = Object.fromEntries((detail.sources || []).map((s) => [s.source_id, s]));
+  const index = Object.fromEntries((detail.sources || []).map((s, i) => [s.source_id, i + 1]));
   const cards = Object.entries(result.brief).map(([name, section]) => {
     const status = sections[name]?.status || "grounded";
     const pct = Math.round((section.confidence || 0) * 100);
-    const long = (section.text || "").length > 420;
+    const resolved = resolveInlineCitations(section.text, index);
+    const long = resolved.text.length > 420;
+    const marks = resolved.replaced ? "" : citationMarks(section, index);
     const body = section.text
-      ? `<p class="section__text${long ? " section__text--clamped" : ""}">${esc(section.text)}</p>
+      ? `<p class="section__text${long ? " section__text--clamped" : ""}">${esc(resolved.text)}${marks}</p>
          ${long ? '<button class="section__more" data-expand>Show full text</button>' : ""}`
       : `<p class="section__text muted">${
           status === "conflicting"
@@ -392,7 +416,10 @@ function renderEvidence(result, detail) {
             <span class="eyebrow">${SECTION_LABELS[active] || active}</span>
             <span class="badge badge--${status}" style="margin-left:auto">${STATUS_COPY[status]}</span>
           </div>
-          <p class="quote">${section.text ? esc(section.text) : "Not asserted."}</p>
+          <p class="quote">${section.text
+            ? esc(resolveInlineCitations(section.text, Object.fromEntries(
+                (detail.sources || []).map((s, i) => [s.source_id, i + 1]))).text)
+            : "Not asserted."}</p>
           <div class="row">
             <div class="meter"><div class="${meterClass(section.confidence, status)}"
                  style="width:${Math.round(section.confidence * 100)}%"></div></div>

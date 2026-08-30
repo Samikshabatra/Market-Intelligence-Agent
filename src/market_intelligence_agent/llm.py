@@ -131,6 +131,22 @@ class GeminiBackend(LLMBackend):
 
     name = "gemini"
 
+    # The shared effort vocabulary mapped onto Gemini's reasoning control. Measured on
+    # a real synthesis prompt: LOW produced the same seven filled sections as the
+    # default in 8s rather than 19s, so effort here buys latency, not coverage.
+    _THINKING_LEVEL = {
+        "low": "LOW",
+        "medium": "MEDIUM",
+        "high": "HIGH",
+        "xhigh": "HIGH",
+        "max": "HIGH",
+    }
+
+    # Reasoning tokens are drawn from the same allowance as the answer, and a real brief
+    # prompt spends 2,000-4,000 of them. Without headroom the JSON is truncated and the
+    # response arrives unparseable - which is exactly how this first failed.
+    _THINKING_HEADROOM = 8000
+
     def __init__(self, settings: Settings, client: object | None = None) -> None:
         self._settings = settings
         self._client = client
@@ -156,11 +172,15 @@ class GeminiBackend(LLMBackend):
         from google.genai import types
 
         client = self._ensure_client()
+        level = self._THINKING_LEVEL.get(effort.lower())
         config = types.GenerateContentConfig(
             system_instruction=system,
             response_mime_type="application/json",
             response_schema=schema,
-            max_output_tokens=max_tokens,
+            max_output_tokens=max_tokens + self._THINKING_HEADROOM,
+            thinking_config=(
+                types.ThinkingConfig(thinking_level=level) if level else None
+            ),
         )
 
         try:
@@ -173,6 +193,25 @@ class GeminiBackend(LLMBackend):
         except TimeoutError as exc:
             raise LLMError(f"Gemini timed out after {timeout}s") from exc
         except genai_errors.APIError as exc:
+            # A retired model id is the most likely first-run failure and the message
+            # should say how to fix it, not just repeat the 404.
+            if getattr(exc, "code", None) == 404:
+                raise LLMError(
+                    f"Gemini rejected model {self._settings.gemini_model!r}: {exc}. "
+                    "Set MIA_GEMINI_MODEL to a model your key can reach - list them with "
+                    "`python -c \"from google import genai; "
+                    "print([m.name for m in genai.Client().models.list()])\"`."
+                ) from exc
+            if getattr(exc, "code", None) == 429:
+                # The free tier allows 20 generate_content calls per model per day, and a
+                # run spends two (plan and brief), so this is reached quickly. Say what
+                # actually happened instead of relaying a wall of quota JSON.
+                raise LLMError(
+                    f"Gemini quota exhausted for {self._settings.gemini_model!r}. "
+                    "The free tier allows a limited number of requests per model per day "
+                    "and each run spends two. Wait for the quota to reset, set "
+                    "MIA_GEMINI_MODEL to a different model, or run with --no-llm."
+                ) from exc
             raise LLMError(f"Gemini request failed: {exc}") from exc
 
         parsed = getattr(response, "parsed", None)

@@ -106,3 +106,30 @@ async def test_markdown_render_includes_sources_and_plan(settings: Settings):
     assert markdown.startswith("# Competitor brief:")
     assert "## Sources" in markdown and "## Search plan" in markdown and "## Timing" in markdown
     assert "s" not in render_summary(result).split("|")[0].strip()[:1]  # starts with a number
+
+
+def test_inline_citations_become_footnote_numbers():
+    from market_intelligence_agent.render import resolve_inline_citations
+
+    text, replaced = resolve_inline_citations("Linear costs $10 [s12, s14]. Jira differs [s3].",
+                                              {"s12": 4, "s14": 5, "s3": 1})
+    assert text == "Linear costs $10 [4][5]. Jira differs [1]."
+    assert replaced
+
+
+def test_inline_citations_the_run_never_issued_are_stripped():
+    """The same rule the evidence store applies to the citation list: an id that was
+    never retrieved cannot appear as a citation."""
+    from market_intelligence_agent.render import resolve_inline_citations
+
+    text, replaced = resolve_inline_citations("A claim [s99].", {"s1": 1})
+    assert text == "A claim."
+    assert not replaced
+
+
+def test_text_without_inline_markers_is_left_alone():
+    from market_intelligence_agent.render import resolve_inline_citations
+
+    text, replaced = resolve_inline_citations("No markers here.", {"s1": 1})
+    assert text == "No markers here."
+    assert not replaced

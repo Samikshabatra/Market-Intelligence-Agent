@@ -155,7 +155,8 @@ async def test_gemini_wrong_type_is_rejected_rather_than_passed_on():
 async def test_gemini_api_errors_become_llm_errors():
     from google.genai import errors as genai_errors
 
-    failure = genai_errors.APIError(429, {"message": "rate limited"})
+    # 404 and 429 have their own guidance; anything else surfaces generically.
+    failure = genai_errors.APIError(500, {"message": "internal error"})
     client = StubGeminiClient(failure)
     with pytest.raises(LLMError, match="Gemini request failed"):
         await GeminiBackend(Settings(gemini_api_key="g-x"), client=client).structured(
@@ -227,3 +228,55 @@ async def test_planner_uses_the_gemini_backend_when_that_is_configured():
     plan = await Planner(LLMClient(settings, backend=backend), settings).plan("What is Linear?")
     assert backend.used
     assert plan.sub_questions[0].search_query == "Linear"
+
+
+@pytest.mark.asyncio
+async def test_a_retired_model_id_explains_how_to_fix_it():
+    """A 404 on the model id is the likeliest first-run failure; the message has to
+    name the setting to change rather than just echo the status code."""
+    from google.genai import errors as genai_errors
+
+    failure = genai_errors.APIError(404, {"message": "model is no longer available"})
+    client = StubGeminiClient(failure)
+    settings = Settings(gemini_api_key="g-x", gemini_model="gemini-2.5-flash")
+    with pytest.raises(LLMError, match="MIA_GEMINI_MODEL"):
+        await GeminiBackend(settings, client=client).structured(
+            Answer, system="s", user="u", effort="low", max_tokens=100, timeout=None,
+        )
+
+
+@pytest.mark.asyncio
+async def test_gemini_reserves_headroom_for_reasoning_tokens():
+    """Reasoning tokens come out of the same allowance as the answer. Passing the
+    caller's ceiling straight through truncated the JSON and lost the response."""
+    client = StubGeminiClient(StubResponse(Answer(subject="x", score=1)))
+    await GeminiBackend(Settings(gemini_api_key="g-x"), client=client).structured(
+        Answer, system="s", user="u", effort="low", max_tokens=4000, timeout=None,
+    )
+    config = client.aio.models.calls[0]["config"]
+    assert config.max_output_tokens > 4000
+
+
+@pytest.mark.asyncio
+async def test_gemini_maps_effort_onto_thinking_level():
+    for effort, expected in (("low", "LOW"), ("medium", "MEDIUM"), ("max", "HIGH")):
+        client = StubGeminiClient(StubResponse(Answer(subject="x", score=1)))
+        await GeminiBackend(Settings(gemini_api_key="g-x"), client=client).structured(
+            Answer, system="s", user="u", effort=effort, max_tokens=100, timeout=None,
+        )
+        config = client.aio.models.calls[0]["config"]
+        assert config.thinking_config.thinking_level == expected
+
+
+@pytest.mark.asyncio
+async def test_quota_exhaustion_is_reported_in_plain_terms():
+    """The raw 429 is a wall of quota JSON. The message should say what happened and
+    what the options are."""
+    from google.genai import errors as genai_errors
+
+    failure = genai_errors.APIError(429, {"message": "RESOURCE_EXHAUSTED quota"})
+    client = StubGeminiClient(failure)
+    with pytest.raises(LLMError, match="quota exhausted"):
+        await GeminiBackend(Settings(gemini_api_key="g-x"), client=client).structured(
+            Answer, system="s", user="u", effort="low", max_tokens=100, timeout=None,
+        )

@@ -6,6 +6,8 @@ render as numbered footnotes so every asserted sentence stays traceable to a URL
 
 from __future__ import annotations
 
+import re
+
 from .models import AgentResult, BriefSection
 
 SECTION_TITLES: dict[str, str] = {
@@ -26,9 +28,45 @@ STATUS_LABEL: dict[str, str] = {
 }
 
 
+# The model cites per claim, inline, e.g. "... costs $10 [s14]" or "[s12, s14]".
+INLINE_CITATION = re.compile(r"\[\s*(s\d+(?:\s*,\s*s\d+)*)\s*\]")
+
+
+def resolve_inline_citations(text: str, index: dict[str, int]) -> tuple[str, bool]:
+    """Rewrite inline source ids as footnote numbers, dropping ids the run never issued.
+
+    Per-claim markers are more precise than a list at the end of a section, so they are
+    kept in preference to it. An id that is not in the index was never retrieved, and is
+    removed rather than rendered - the same rule the evidence store applies to the
+    section's citation list.
+    """
+    replaced = False
+
+    def swap(match: re.Match) -> str:
+        nonlocal replaced
+        numbers = [index[part.strip()] for part in match.group(1).split(",")
+                   if part.strip() in index]
+        if not numbers:
+            return ""
+        replaced = True
+        return "".join(f"[{n}]" for n in numbers)
+
+    cleaned = INLINE_CITATION.sub(swap, text)
+    # Removing a marker can leave a doubled space or a space before punctuation.
+    cleaned = re.sub(r"\s+([.,;:])", r"\1", cleaned)
+    return re.sub(r"[ \t]{2,}", " ", cleaned).strip(), replaced
+
+
 def _citation_marks(section: BriefSection, index: dict[str, int]) -> str:
     marks = [f"[{index[c]}]" for c in section.citations if c in index]
     return " " + "".join(marks) if marks else ""
+
+
+def _section_body(section: BriefSection, index: dict[str, int]) -> str:
+    """Section text with citations resolved, appending section-level marks only when
+    the text carries none of its own."""
+    text, inlined = resolve_inline_citations(section.text, index)
+    return text if inlined else f"{text}{_citation_marks(section, index)}"
 
 
 def render_markdown(result: AgentResult) -> str:
@@ -51,14 +89,14 @@ def render_markdown(result: AgentResult) -> str:
         status = STATUS_LABEL[section.status]
         lines.append(f"## {title}")
         if section.is_asserted():
-            lines.append(f"{section.text}{_citation_marks(section, index)}")
+            lines.append(_section_body(section, index))
             lines.append("")
             lines.append(f"*confidence {section.confidence:.2f}*")
         elif section.status == "conflicting":
             lines.append(f"**{status}** - sources disagree; both are cited below.")
             if section.text:
                 lines.append("")
-                lines.append(f"> {section.text}{_citation_marks(section, index)}")
+                lines.append(f"> {_section_body(section, index)}")
         elif section.status == "unverified":
             lines.append(
                 f"**{status}** (confidence {section.confidence:.2f}) - "
@@ -66,7 +104,7 @@ def render_markdown(result: AgentResult) -> str:
             )
             if section.text:
                 lines.append("")
-                lines.append(f"> {section.text}{_citation_marks(section, index)}")
+                lines.append(f"> {_section_body(section, index)}")
         else:
             lines.append(f"**{status}** - no retrieved source supports this section.")
         lines.append("")

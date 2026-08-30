@@ -93,7 +93,9 @@ class Settings:
     # "auto" uses whichever credential is present, preferring Anthropic when both are.
     llm_provider: str = "auto"
     model: str = "claude-opus-5"
-    gemini_model: str = "gemini-2.5-flash"
+    # Pinned rather than an alias so eval runs stay reproducible. Set
+    # MIA_GEMINI_MODEL=gemini-flash-latest to track Google's current flash instead.
+    gemini_model: str = "gemini-3.6-flash"
     planner_effort: str = "low"
     synthesizer_effort: str = "medium"
 
@@ -128,6 +130,11 @@ class Settings:
     grounding_budget_seconds: float = 10.0
     fallback_budget_seconds: float = 15.0
     synthesis_budget_seconds: float = 5.0
+    # A stage may borrow slack left by earlier stages, up to this multiple of its own
+    # budget. The enforced limit is total_budget_seconds; the per-stage figures are a
+    # schedule. Without this a model slower than the nominal 5s planning slice times
+    # out on every run and the agent silently falls back to heuristics.
+    stage_slack_multiplier: float = 3.0
 
     @classmethod
     def from_env(cls, **overrides: object) -> Settings:
@@ -140,7 +147,7 @@ class Settings:
             tavily_api_key=_env_key("TAVILY_API_KEY"),
             llm_provider=os.getenv("MIA_LLM_PROVIDER", "auto"),
             model=os.getenv("MIA_MODEL", "claude-opus-5"),
-            gemini_model=os.getenv("MIA_GEMINI_MODEL", "gemini-2.5-flash"),
+            gemini_model=os.getenv("MIA_GEMINI_MODEL", "gemini-3.6-flash"),
             search_provider=os.getenv("MIA_SEARCH_PROVIDER", "tavily"),
             mock_corpus_path=os.getenv("MIA_MOCK_CORPUS"),
             total_budget_seconds=_env_float("MIA_TOTAL_BUDGET_SECONDS", 60.0),
