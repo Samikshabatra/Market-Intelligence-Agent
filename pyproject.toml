@@ -39,3 +39,11 @@ pythonpath = ["src", "."]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint]
+# Explicit rule set so a ruff upgrade cannot fail CI on rules the project never chose.
+select = ["E", "F", "I", "B", "UP", "SIM", "RET"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests reach into private attributes on purpose to assert internal state.
+"tests/*" = ["SLF001"]

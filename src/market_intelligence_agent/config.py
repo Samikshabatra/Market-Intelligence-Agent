@@ -113,7 +113,7 @@ class Settings:
     synthesis_budget_seconds: float = 5.0
 
     @classmethod
-    def from_env(cls, **overrides: object) -> "Settings":
+    def from_env(cls, **overrides: object) -> Settings:
         """Build settings from a ``.env`` file / process environment, then apply overrides."""
         load_dotenv(override=False)
         settings = cls(

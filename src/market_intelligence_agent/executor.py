@@ -135,7 +135,7 @@ class SearchExecutor:
         timeout = self._remaining(deadline)
         try:
             gathered = await asyncio.wait_for(asyncio.gather(*tasks), timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             report.errors.append(f"search round {round_index} hit its {timeout:.1f}s budget")
             gathered = [t.result() for t in tasks if t.done() and not t.cancelled()]
             for task in tasks:

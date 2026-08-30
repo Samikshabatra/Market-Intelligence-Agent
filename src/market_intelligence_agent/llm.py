@@ -7,7 +7,6 @@ free-text parsing happens anywhere else in the pipeline.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import TypeVar
 
@@ -83,7 +82,7 @@ class LLMClient:
             response = await client.messages.parse(**kwargs)
         except anthropic.APIStatusError as exc:
             raise LLMError(f"Anthropic returned {exc.status_code}: {exc.message}") from exc
-        except (anthropic.APIConnectionError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, anthropic.APIConnectionError) as exc:
             raise LLMError(f"Anthropic request failed: {exc}") from exc
 
         parsed = getattr(response, "parsed_output", None)

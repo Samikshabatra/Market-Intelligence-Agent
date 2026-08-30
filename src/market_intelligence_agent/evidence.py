@@ -15,12 +15,12 @@ from dataclasses import dataclass
 from .models import SourceKind, SourceRecord
 
 _TOKEN = re.compile(r"[a-z0-9]+")
-_STOPWORDS = frozenset(
-    """
-    a an the and or of to in for on with by is are was were be been being it its this that
-    these those as at from about into over after before than then so such not no company
-    """.split()
-)
+_STOPWORDS = frozenset({
+    "a", "an", "the", "and", "or", "of", "to", "in", "for", "on", "with", "by",
+    "is", "are", "was", "were", "be", "been", "being", "it", "its", "this", "that",
+    "these", "those", "as", "at", "from", "about", "into", "over", "after", "before",
+    "than", "then", "so", "such", "not", "no", "company",
+})
 
 
 def tokenize(text: str) -> set[str]:
@@ -59,7 +59,11 @@ class EvidenceStore:
         for section in target_sections or []:
             self._section_hints[section].add(record.source_id)
 
-    def add_all(self, records: list[SourceRecord], hints: dict[str, list[str]] | None = None) -> None:
+    def add_all(
+        self,
+        records: list[SourceRecord],
+        hints: dict[str, list[str]] | None = None,
+    ) -> None:
         """Bulk-add, mapping each record to the sections its sub-question was aimed at."""
         hints = hints or {}
         for record in records:

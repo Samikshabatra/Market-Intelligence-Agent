@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from market_intelligence_agent.evidence import EvidenceStore, tokenize
 from market_intelligence_agent.models import SourceRecord
@@ -12,7 +12,7 @@ def record(source_id: str, domain: str, passage: str, **kwargs) -> SourceRecord:
         url=f"https://{domain}/{source_id}",
         domain=domain,
         passage=passage,
-        retrieved_at=datetime(2026, 8, 30, tzinfo=timezone.utc),
+        retrieved_at=datetime(2026, 8, 30, tzinfo=UTC),
         **kwargs,
     )
 

@@ -61,4 +61,4 @@ class SearchProvider(ABC):
 
     async def aclose(self) -> None:
         """Release any held connections. Safe to call more than once."""
-        return None
+        return

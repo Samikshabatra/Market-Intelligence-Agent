@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from .base import SearchProvider, SearchResult
@@ -62,7 +62,7 @@ class MockSearchProvider(SearchProvider):
         if corpus_path is not None:
             self._fixtures.update(json.loads(Path(corpus_path).read_text(encoding="utf-8")))
         self._results_per_query = results_per_query
-        self._now = now or datetime.now(timezone.utc)
+        self._now = now or datetime.now(UTC)
         self.calls: list[str] = []
 
     async def search(self, query: str, *, max_results: int = 5) -> list[SearchResult]:

@@ -7,8 +7,7 @@ budget in section 6 of the spec.
 
 from __future__ import annotations
 
-import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 
@@ -26,13 +25,13 @@ def _parse_date(raw: object) -> datetime | None:
             parsed = parse(text)
         except ValueError:
             continue
-        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
     for fmt in ("%a, %d %b %Y %H:%M:%S %z", "%Y-%m-%d", "%d %b %Y"):
         try:
             parsed = datetime.strptime(text, fmt)
         except ValueError:
             continue
-        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
     return None
 
 
@@ -72,7 +71,7 @@ class TavilySearchProvider(SearchProvider):
             )
             response.raise_for_status()
             body = response.json()
-        except (httpx.TimeoutException, asyncio.TimeoutError) as exc:
+        except (TimeoutError, httpx.TimeoutException) as exc:
             raise SearchError(f"Tavily timed out after {self._timeout}s for {query!r}") from exc
         except httpx.HTTPStatusError as exc:
             raise SearchError(

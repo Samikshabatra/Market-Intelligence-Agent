@@ -17,7 +17,7 @@ import json
 import statistics
 import time
 from dataclasses import asdict, dataclass, field, replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import yaml
@@ -249,7 +249,7 @@ async def run_variant(
     out_dir: Path,
     variant: str,
 ) -> SuiteReport:
-    started_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    started_at = datetime.now(UTC).isoformat(timespec="seconds")
     variant_dir = out_dir / variant
     variant_dir.mkdir(parents=True, exist_ok=True)
 

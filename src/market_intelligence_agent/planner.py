@@ -106,12 +106,13 @@ class Planner:
             {"company_site", "news", "review_platform", "funding_database",
              "social_professional", "industry_report"} - covered_kinds
         )
+        gap_lines = "\n".join(f"- {g}" for g in gaps or ["insufficient corroboration"])
         prompt = (
             f"Original query:\n{query}\n\n"
             f"Subject: {previous.subject or 'unknown'}\n\n"
             f"Queries already run:\n{tried or '- none'}\n\n"
-            f"Gaps to close:\n" + "\n".join(f"- {g}" for g in gaps or ["insufficient corroboration"])
-            + f"\n\nSource kinds still missing: {', '.join(missing) or 'none'}"
+            f"Gaps to close:\n{gap_lines}\n\n"
+            f"Source kinds still missing: {', '.join(missing) or 'none'}"
         )
         if not self._llm.available:
             return heuristic_replan(query, previous, missing, self._settings)

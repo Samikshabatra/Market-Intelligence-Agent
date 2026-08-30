@@ -196,7 +196,7 @@ class MarketIntelligenceAgent:
             await self._provider.aclose()
         await self._llm.aclose()
 
-    async def __aenter__(self) -> "MarketIntelligenceAgent":
+    async def __aenter__(self) -> MarketIntelligenceAgent:
         return self
 
     async def __aexit__(self, *exc_info: object) -> None:
