@@ -48,6 +48,10 @@ _SCALE = {"k": 1e3, "m": 1e6, "bn": 1e9, "million": 1e6, "billion": 1e9}
 # rounding or a reporting-window difference.
 CONFLICT_TOLERANCE = 0.25
 
+# A passage quoting more than this many distinct figures of one kind is a table or
+# leaderboard, not a claim about one subject, so it is excluded from conflict checks.
+TABULAR_FIGURE_LIMIT = 4
+
 
 @dataclass(slots=True)
 class SectionAssessment:
@@ -194,10 +198,19 @@ class ConfidenceScorer:
 
     @classmethod
     def _has_numeric_conflict(cls, sources: list[SourceRecord]) -> bool:
-        """True when two or more domains quote materially different figures of one kind."""
+        """True when two or more domains quote materially different figures of one kind.
+
+        Passages carrying a whole table of figures are skipped: a funding leaderboard
+        lists amounts for many different companies, so its spread says nothing about
+        whether sources disagree on *our* subject. Without this guard any comparison
+        listicle marked the section conflicting.
+        """
         by_family: dict[str, dict[str, set[float]]] = {}
         for source in sources:
-            for family, values in cls._extract_figures(source.passage).items():
+            figures = cls._extract_figures(source.passage)
+            if any(len(values) > TABULAR_FIGURE_LIMIT for values in figures.values()):
+                continue
+            for family, values in figures.items():
                 if values:
                     by_family.setdefault(family, {}).setdefault(source.domain, set()).update(values)
 

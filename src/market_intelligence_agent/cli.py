@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import json
 import logging
 import sys
@@ -121,7 +122,21 @@ async def _eval(args: argparse.Namespace) -> int:
     return 0 if report.passed else 1
 
 
+def _force_utf8_output() -> None:
+    """Retrieved web pages contain emoji and typographic punctuation the Windows console
+    (cp1252) cannot encode, which made `print` raise UnicodeEncodeError mid-brief and
+    lose the whole run. Replace unencodable characters instead of failing."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            # Exotic or already-detached streams reject reconfiguration; plain text
+            # output still works, so there is nothing to recover from.
+            with contextlib.suppress(ValueError, OSError):
+                reconfigure(encoding="utf-8", errors="replace")
+
+
 def main(argv: list[str] | None = None) -> int:
+    _force_utf8_output()
     args = build_parser().parse_args(argv)
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.WARNING,

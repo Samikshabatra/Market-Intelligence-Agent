@@ -172,3 +172,34 @@ def test_high_confidence_section_is_asserted_without_a_flag(settings: Settings):
     assert updated.status == "grounded"
     assert updated.is_asserted()
     assert flag is None
+
+
+def test_a_table_of_many_figures_is_not_read_as_disagreement(settings: Settings):
+    """A funding leaderboard lists amounts for several different companies. Its spread
+    is not evidence that sources disagree about our subject."""
+    leaderboard = (
+        "1st Smartsheet $121M Madrona. 2nd Notion $418M Temasek. 3rd Anaplan $300M "
+        "Premji Invest. 4th Pigment $397M Iconiq. 5th Airtable $271M Thrive."
+    )
+    assessment = ConfidenceScorer(settings).score_section(
+        "market_signals",
+        "Funding across the category varies widely.",
+        [
+            source("s1", "tracxn.com", leaderboard),
+            source("s2", "crunchbase.com", "Notion has raised $418M to date."),
+        ],
+    )
+    assert not assessment.conflicting
+
+
+def test_two_genuine_figures_for_one_subject_still_conflict(settings: Settings):
+    """The tabular guard must not swallow a real disagreement."""
+    assessment = ConfidenceScorer(settings).score_section(
+        "market_signals",
+        "Valuation is unclear.",
+        [
+            source("s1", "reuters.com", "Shein was valued at $45 billion in secondaries."),
+            source("s2", "bloomberg.com", "Advisers target a $66 billion valuation."),
+        ],
+    )
+    assert assessment.conflicting

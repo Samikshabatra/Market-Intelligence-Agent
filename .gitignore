@@ -15,6 +15,7 @@ env/
 .coverage
 htmlcov/
 eval/runs/
+out/
 *.log
 .DS_Store
 .idea/

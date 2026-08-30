@@ -28,6 +28,10 @@ KEY_SHAPES: tuple[tuple[str, int], ...] = (
 
 def env_example_values() -> list[tuple[str, str]]:
     path = REPO_ROOT / ".env.example"
+    if not path.exists():
+        # Collected at import time, so a missing template must not abort the whole
+        # suite; test_env_example_exists reports it as a normal failure instead.
+        return []
     pairs = []
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
@@ -47,6 +51,14 @@ def test_env_example_holds_only_placeholders(name: str, value: str):
             f".env.example {name} looks like a real credential. Put it in .env "
             f"(untracked) instead - .env.example is committed and pushed."
         )
+
+
+def test_env_example_exists():
+    """The template must survive. Renaming it to .env (instead of copying) removes
+    the documented list of settings and disables the credential guard above."""
+    assert (REPO_ROOT / ".env.example").exists(), (
+        ".env.example is missing - copy it to .env rather than renaming it."
+    )
 
 
 def test_env_is_not_tracked():

@@ -9,6 +9,7 @@ same contract for offline runs and for the case where the model call fails.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -171,26 +172,100 @@ _SECTION_CUES: dict[str, tuple[str, ...]] = {
 }
 
 
+def _mentions_section(record: SourceRecord, cues: tuple[str, ...]) -> bool:
+    """Whether the passage says anything about this section's subject at all."""
+    haystack = f"{record.title} {record.passage}".lower()
+    return any(cue in haystack for cue in cues)
+
+
+def _cue_score(record: SourceRecord, cues: tuple[str, ...]) -> float:
+    """How strongly a passage reads like evidence for this particular section."""
+    haystack = f"{record.title} {record.passage}".lower()
+    hits = sum(1 for cue in cues if cue in haystack)
+    return hits / len(cues) + 0.2 * record.relevance
+
+
+def _best_sentence(passage: str, cues: tuple[str, ...]) -> str:
+    """Pick the sentence that actually carries the section's subject.
+
+    Taking the first sentence blindly is what produced boilerplate leads ("Title: Coda
+    vs", "Should You Use..."); scoring by cue hits picks the sentence with the substance.
+    """
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", passage) if len(s.strip()) > 40]
+    if not sentences:
+        return passage.strip()
+    scored = [
+        (sum(1 for cue in cues if cue in s.lower()), -index, s)
+        for index, s in enumerate(sentences)
+    ]
+    return max(scored)[2]
+
+
 def extractive_brief(query: str, store: EvidenceStore, *, per_section: int = 3) -> Brief:
     """Model-free synthesis: quote the best-matching passages and cite them.
 
     Deliberately conservative - it summarises nothing it cannot point at, which keeps the
     offline path honest under the same citation rules as the model path.
+
+    The planner maps one sub-question to several sections, so the naive version handed
+    every one of those sections the same candidates and produced byte-identical text for
+    (say) strengths and weaknesses. Candidates are therefore re-ranked per section by
+    cue overlap, and a passage already used elsewhere is only reused when a section has
+    nothing else to stand on.
     """
     brief = Brief()
+
+    # Which sources are even in play for each section.
+    pools: dict[str, list[SourceRecord]] = {}
     for name in SECTION_NAMES:
-        cues = " ".join(_SECTION_CUES[name])
-        candidates = store.for_section(name, limit=per_section) or store.search(
-            f"{query} {cues}", limit=per_section
+        cues = _SECTION_CUES[name]
+        pools[name] = store.for_section(name, limit=per_section * 3) or store.search(
+            f"{query} {' '.join(cues)}", limit=per_section * 3
         )
+
+    # Assign each source to the section it fits best, before any section picks. Letting
+    # sections choose in declaration order made the first one claim the strongest passage
+    # whatever it was about - company_overview would take the pricing passage, and
+    # pricing then quoted a leftover.
+    best_fit: dict[str, list[SourceRecord]] = {name: [] for name in SECTION_NAMES}
+    for record in {r.source_id: r for pool in pools.values() for r in pool}.values():
+        eligible = [name for name in SECTION_NAMES if record in pools[name]]
+        if not eligible:
+            continue
+        winner = max(eligible, key=lambda name: _cue_score(record, _SECTION_CUES[name]))
+        best_fit[winner].append(record)
+
+    for name in SECTION_NAMES:
+        cues = _SECTION_CUES[name]
+        if not pools[name]:
+            setattr(brief, name, BriefSection(text="", citations=[], status="insufficient_data"))
+            continue
+
+        preferred = sorted(best_fit[name], key=lambda r: _cue_score(r, cues), reverse=True)
+        candidates = preferred[:per_section]
+        if len(candidates) < per_section:
+            # Top up from the section's own pool, but only with passages that actually
+            # mention something this section is about. Recycling an unrelated passage
+            # would pad the brief with a correctly-cited claim that is nonetheless not
+            # evidence for this section - the padding failure the confidence stage
+            # exists to prevent.
+            chosen = {r.source_id for r in candidates}
+            fallback = sorted(pools[name], key=lambda r: _cue_score(r, cues), reverse=True)
+            candidates += [
+                r
+                for r in fallback
+                if r.source_id not in chosen and _mentions_section(r, cues)
+            ][: per_section - len(candidates)]
+
         if not candidates:
             setattr(brief, name, BriefSection(text="", citations=[], status="insufficient_data"))
             continue
+
         sentences = []
         for record in candidates:
-            head = record.passage.split(". ")[0].strip()
-            if head:
-                sentences.append(f"{head} [{record.source_id}]")
+            sentence = _best_sentence(record.passage, cues)
+            if sentence:
+                sentences.append(f"{sentence.rstrip('.')} [{record.source_id}]")
         setattr(
             brief,
             name,

@@ -23,6 +23,23 @@ logger = logging.getLogger(__name__)
 MAX_PASSAGE_CHARS = 1200
 MIN_PASSAGE_CHARS = 80
 
+# Page furniture that survives content extraction and must not be quoted as evidence.
+_CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f�​-‏]")
+_MARKDOWN_IMAGE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
+_MARKDOWN_LINK = re.compile(r"\[([^\]]+)\]\([^)]*\)")
+_MARKDOWN_HEADING = re.compile(r"(?:^|\s)#{1,6}\s+")
+_TITLE_PREFIX = re.compile(r"^\s*(?:title|url source|published time)\s*:\s*", re.IGNORECASE)
+_TABLE_PIPES = re.compile(r"\s*\|\s*")
+# Separate from the pipe pattern: a single alternation cannot match the rule row,
+# because consuming " | " leaves the scanner sitting on "-" with no whitespace to match.
+_TABLE_RULE = re.compile(r"(?<![\w-])-{3,}(?![\w-])")
+_LIST_BULLET = re.compile(r"(?:^|\s)[-*•]\s+")
+# Extractors mark elided text as "[...]" or "[…]"; drop the marker rather than let it
+# become a sentence. Note "." is deliberately absent from _REPEATED_PUNCT below -
+# collapsing runs of dots turned every ellipsis into a stray "[.]".
+_ELLIPSIS_MARKER = re.compile(r"\[\s*(?:\.{2,}|…)\s*\]")
+_REPEATED_PUNCT = re.compile(r"([!?,;:])\1{1,}")
+
 # Domain patterns that identify what kind of source a hit is. Order matters: the first
 # match wins, so specific platforms are listed before the generic fallbacks.
 _KIND_PATTERNS: tuple[tuple[SourceKind, tuple[str, ...]], ...] = (
@@ -57,9 +74,30 @@ def classify_source(domain: str, subject: str = "") -> SourceKind:
     return "other"
 
 
+def clean_passage(text: str) -> str:
+    """Strip the page furniture that survives content extraction.
+
+    Extractors return the article body, but they keep markdown headings, table pipes,
+    nav breadcrumbs and "Title:" prefixes. Left in, those fragments are quoted verbatim
+    by the extractive synthesiser and inflate the token count of the synthesis prompt,
+    so they are removed once here rather than worked around downstream.
+    """
+    text = _CONTROL_CHARS.sub(" ", text)
+    text = _MARKDOWN_IMAGE.sub(" ", text)
+    text = _MARKDOWN_LINK.sub(r"\1", text)
+    text = _TITLE_PREFIX.sub("", text)
+    text = _ELLIPSIS_MARKER.sub(" ", text)
+    text = _MARKDOWN_HEADING.sub(" ", text)
+    text = _TABLE_PIPES.sub(" ", text)
+    text = _TABLE_RULE.sub(" ", text)
+    text = _LIST_BULLET.sub(" ", text)
+    text = _REPEATED_PUNCT.sub(r"\1", text)
+    return " ".join(text.split())
+
+
 def _passage_from(result: SearchResult) -> str:
-    """Trim extracted content to a citable passage without cutting mid-sentence."""
-    text = " ".join((result.content or result.title or "").split())
+    """Clean, then trim to a citable passage without cutting mid-sentence."""
+    text = clean_passage(result.content or result.title or "")
     if len(text) <= MAX_PASSAGE_CHARS:
         return text
     clipped = text[:MAX_PASSAGE_CHARS]
