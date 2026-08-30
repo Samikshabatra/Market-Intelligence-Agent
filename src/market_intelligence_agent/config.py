@@ -86,10 +86,14 @@ class Settings:
 
     # --- credentials -------------------------------------------------------
     anthropic_api_key: str | None = None
+    gemini_api_key: str | None = None
     tavily_api_key: str | None = None
 
     # --- models ------------------------------------------------------------
+    # "auto" uses whichever credential is present, preferring Anthropic when both are.
+    llm_provider: str = "auto"
     model: str = "claude-opus-5"
+    gemini_model: str = "gemini-2.5-flash"
     planner_effort: str = "low"
     synthesizer_effort: str = "medium"
 
@@ -131,8 +135,12 @@ class Settings:
         load_dotenv(override=False)
         settings = cls(
             anthropic_api_key=_env_key("ANTHROPIC_API_KEY"),
+            # GOOGLE_API_KEY is the google-genai SDK's own variable; accept either.
+            gemini_api_key=_env_key("GEMINI_API_KEY") or _env_key("GOOGLE_API_KEY"),
             tavily_api_key=_env_key("TAVILY_API_KEY"),
+            llm_provider=os.getenv("MIA_LLM_PROVIDER", "auto"),
             model=os.getenv("MIA_MODEL", "claude-opus-5"),
+            gemini_model=os.getenv("MIA_GEMINI_MODEL", "gemini-2.5-flash"),
             search_provider=os.getenv("MIA_SEARCH_PROVIDER", "tavily"),
             mock_corpus_path=os.getenv("MIA_MOCK_CORPUS"),
             total_budget_seconds=_env_float("MIA_TOTAL_BUDGET_SECONDS", 60.0),

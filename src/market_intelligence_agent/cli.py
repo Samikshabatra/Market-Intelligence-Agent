@@ -83,7 +83,7 @@ def _settings_for(args: argparse.Namespace) -> Settings:
     # Without a key the pipeline degrades to the same place anyway, so the flags are a
     # way to be explicit rather than a separate code path.
     if getattr(args, "no_llm", False) or getattr(args, "offline", False):
-        settings.anthropic_api_key = None
+        settings.llm_provider = "none"
     if getattr(args, "offline", False):
         settings.search_provider = getattr(args, "provider", None) or "mock"
     return settings

@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 
 from ..agent import MarketIntelligenceAgent
 from ..config import Settings
+from ..llm import resolve_provider
 from .store import Run, RunStore
 
 logger = logging.getLogger(__name__)
@@ -114,7 +115,8 @@ def create_app(settings: Settings | None = None, run_dir: Path | None = None) ->
         return {
             "search_provider": current.search_provider,
             "has_search_key": bool(current.tavily_api_key) or current.search_provider == "mock",
-            "has_model": bool(current.anthropic_api_key),
+            "model_provider": resolve_provider(current),
+            "has_model": resolve_provider(current) is not None,
             "min_distinct_domains": current.min_distinct_domains,
             "confidence_threshold": current.confidence_threshold,
             "depths": {

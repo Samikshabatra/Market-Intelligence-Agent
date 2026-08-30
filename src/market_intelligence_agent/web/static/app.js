@@ -534,7 +534,9 @@ function viewAbout(config) {
           <div class="row"><span class="muted" style="min-width:130px">Search backend</span>
             <span>${esc(config?.search_provider || "unknown")}</span></div>
           <div class="row"><span class="muted" style="min-width:130px">Brief writing</span>
-            <span>${config?.has_model ? "Model-written" : "Extractive (no model key)"}</span></div>
+            <span>${config?.has_model
+              ? `Model-written (${esc(config.model_provider)})`
+              : "Extractive (no model key)"}</span></div>
           <div class="row"><span class="muted" style="min-width:130px">Domain floor</span>
             <span>${config?.min_distinct_domains ?? 5} distinct domains</span></div>
           <div class="row"><span class="muted" style="min-width:130px">Confidence threshold</span>

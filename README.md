@@ -34,9 +34,9 @@ mia run "How does Notion position against Coda in the mid-market?"
 mia run "Figma pricing changes 2026" --json out/figma.json
 ```
 
-### Running without an Anthropic key
+### Running without any model key
 
-Both API keys give you the full pipeline. With **only** a Tavily key, the agent still
+A model key gives you the full pipeline. With **only** a Tavily key, the agent still
 runs end to end - it degrades rather than failing:
 
 ```bash
@@ -44,12 +44,12 @@ mia run "How does Notion position against Coda?" --no-llm    # real search, no m
 mia run "..." --offline                                      # mock search, no model
 ```
 
-| | With both keys | Tavily only (`--no-llm`) |
+| | With a model key | Tavily only (`--no-llm`) |
 |---|---|---|
-| Planning | Claude decides the sub-questions, adapting depth to the query | Fixed template, one sub-question per source kind |
+| Planning | The model decides the sub-questions, adapting depth to the query | Fixed template, one sub-question per source kind |
 | Search | Live Tavily | Live Tavily |
 | Grounding, dedupe, confidence, fallback | identical | identical |
-| Brief | Claude writes each section from the evidence | Best-matching passages quoted verbatim, cited |
+| Brief | The model writes each section from the evidence | Best-matching passages quoted verbatim, cited |
 
 The citation rules are the same in both modes: a section with no valid citation is
 never asserted. The model-free brief is honest but blunt - it quotes rather than
