@@ -55,6 +55,12 @@ CONFLICT_TOLERANCE = 0.25
 # conflicting, which drowns the real disagreements.
 TABULAR_FIGURE_LIMIT = 2
 
+# A claim resting on one domain is uncorroborated by definition, whatever that domain's
+# authority or freshness. Section 9 of the spec asks for corroboration on high-impact
+# claims, so a single-source section is capped below the default threshold and reports
+# as unverified rather than asserted. A reputable outlet is still one outlet.
+SINGLE_DOMAIN_CEILING = 0.5
+
 
 @dataclass(slots=True)
 class SectionAssessment:
@@ -132,6 +138,8 @@ class ConfidenceScorer:
             - (0.15 if conflicting else 0.0)
         )
         score = max(0.0, min(1.0, score))
+        if len(domains) == 1:
+            score = min(score, SINGLE_DOMAIN_CEILING)
 
         return SectionAssessment(
             section=section,

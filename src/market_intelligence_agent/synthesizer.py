@@ -201,6 +201,44 @@ def _best_sentence(passage: str, cues: tuple[str, ...]) -> str:
     return max(scored)[2]
 
 
+MAX_COUNTERPARTS = 2
+
+
+def _contradicting(
+    chosen: list[SourceRecord],
+    pool: list[SourceRecord],
+) -> list[SourceRecord]:
+    """Sources from other domains quoting a figure of a kind the section already quotes.
+
+    A disagreement only exists where two figures sit side by side. Section assignment is
+    otherwise exclusive, so without this a contradicting source is filed elsewhere and
+    the confidence scorer never sees the two together.
+    """
+    from .confidence import ConfidenceScorer
+
+    picked = {r.source_id for r in chosen}
+    families = {
+        family
+        for record in chosen
+        for family, values in ConfidenceScorer._extract_figures(record.passage).items()
+        if values
+    }
+    if not families:
+        return []
+
+    domains = {r.domain for r in chosen}
+    counterparts = []
+    for record in pool:
+        if record.source_id in picked or record.domain in domains:
+            continue
+        figures = ConfidenceScorer._extract_figures(record.passage)
+        if any(figures[family] for family in families):
+            counterparts.append(record)
+            if len(counterparts) >= MAX_COUNTERPARTS:
+                break
+    return counterparts
+
+
 def extractive_brief(query: str, store: EvidenceStore, *, per_section: int = 3) -> Brief:
     """Model-free synthesis: quote the best-matching passages and cite them.
 
@@ -256,6 +294,12 @@ def extractive_brief(query: str, store: EvidenceStore, *, per_section: int = 3) 
                 for r in fallback
                 if r.source_id not in chosen and _mentions_section(r, cues)
             ][: per_section - len(candidates)]
+
+        # Best-fit assignment is exclusive, which quietly hid disagreements: two sources
+        # quoting different market-share figures would land in different sections, and a
+        # section holding one figure has nothing to disagree with. Pull the counterpart
+        # back in, so a contradiction is visible where the claim is made.
+        candidates += _contradicting(candidates, pools[name])
 
         if not candidates:
             setattr(brief, name, BriefSection(text="", citations=[], status="insufficient_data"))

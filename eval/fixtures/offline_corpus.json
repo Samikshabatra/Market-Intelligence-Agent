@@ -8,16 +8,6 @@
       "published_at": "2025-11-02T00:00:00+00:00"
     }
   ],
-  "Estonia robotics startup": [
-    {
-      "url": "https://techcrunch.com/2026/02/robotics-seed-rounds",
-      "title": "European warehouse robotics seed rounds",
-      "content": "The article surveys European warehouse robotics seed rounds in general terms. It names no Estonian company and gives no pricing for any product, describing only aggregate round sizes across the region.",
-      "score": 0.44,
-      "published_at": "2026-02-11T00:00:00+00:00"
-    }
-  ],
-  "weaknesses logistics tooling": [],
   "CRDT sync IoT": [
     {
       "url": "https://news.ycombinator.com/item?id=42100777",
@@ -122,5 +112,15 @@
       "score": 0.76,
       "published_at": "2026-03-22T00:00:00+00:00"
     }
-  ]
+  ],
+  "Estonia": [
+    {
+      "url": "https://techcrunch.com/2026/02/robotics-seed-rounds",
+      "title": "European warehouse robotics seed rounds",
+      "content": "The article surveys European warehouse robotics seed rounds in general terms. It names no Estonian company and gives no pricing for any product, describing only aggregate round sizes across the region.",
+      "score": 0.44,
+      "published_at": "2026-02-11T00:00:00+00:00"
+    }
+  ],
+  "weaknesses 40-person": []
 }

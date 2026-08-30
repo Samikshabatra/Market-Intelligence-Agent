@@ -216,3 +216,21 @@ def test_a_tier_list_is_not_a_disagreement(settings: Settings):
         ],
     )
     assert not assessment.conflicting
+
+
+def test_a_single_domain_cannot_clear_the_threshold(settings: Settings):
+    """One source is uncorroborated however reputable it is, so it reports as
+    unverified rather than being asserted."""
+    assessment = ConfidenceScorer(settings).score_section(
+        "pricing", PASSAGE, [source("s1", "reuters.com", age_days=1)]
+    )
+    assert assessment.score <= 0.5
+    assert assessment.score < settings.confidence_threshold
+
+
+def test_two_domains_can_clear_the_threshold(settings: Settings):
+    assessment = ConfidenceScorer(settings).score_section(
+        "pricing", PASSAGE,
+        [source("s1", "reuters.com", age_days=5), source("s2", "bloomberg.com", age_days=5)],
+    )
+    assert assessment.score > settings.confidence_threshold
