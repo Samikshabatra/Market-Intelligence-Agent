@@ -54,6 +54,15 @@ class MarketIntelligenceAgent:
         # not silently lower quality for the next one.
         self._synthesizer.reset_effort()
 
+        # A model-free run still produces a grounded brief, but it is quoted rather than
+        # synthesised and the plan is templated. Say so, so the output is never mistaken
+        # for the full pipeline's work.
+        if not self._llm.available:
+            result.unverified_flags.append(
+                "no model configured: search plan is heuristic and the brief is extractive "
+                "(passages are quoted, not synthesised)"
+            )
+
         # --- 1. plan ------------------------------------------------------
         # Planning is a model call that spends up to 5s of the budget doing no retrieval.
         # A seed search on the raw query runs concurrently, so that time buys sources

@@ -29,7 +29,16 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("tavily", "mock"),
         help="Search backend. 'mock' runs fully offline.",
     )
-    run.add_argument("--offline", action="store_true", help="Skip all model calls.")
+    run.add_argument(
+        "--offline",
+        action="store_true",
+        help="Fully offline: mock search provider and no model calls.",
+    )
+    run.add_argument(
+        "--no-llm",
+        action="store_true",
+        help="Real web search, but no model calls: heuristic plan, extractive brief.",
+    )
     run.add_argument("--json", dest="json_path", help="Also write the spec JSON to this path.")
     run.add_argument("--budget", type=float, help="Total latency budget in seconds.")
     run.add_argument(
@@ -42,7 +51,16 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--set", dest="query_set", default="eval/queries.yaml")
     evaluate.add_argument("--out", dest="out_dir", default="eval/runs")
     evaluate.add_argument("--provider", choices=("tavily", "mock"), default=None)
-    evaluate.add_argument("--offline", action="store_true", help="Skip all model calls.")
+    evaluate.add_argument(
+        "--offline",
+        action="store_true",
+        help="Fully offline: mock search provider and no model calls.",
+    )
+    evaluate.add_argument(
+        "--no-llm",
+        action="store_true",
+        help="Real web search, but no model calls: heuristic plan, extractive brief.",
+    )
     evaluate.add_argument(
         "--ablation",
         action="store_true",
@@ -59,8 +77,13 @@ def _settings_for(args: argparse.Namespace) -> Settings:
     )
     if getattr(args, "no_fallback", False):
         settings.fallback_enabled = False
-    if getattr(args, "offline", False):
+
+    # --no-llm drops the model but keeps the real search backend; --offline drops both.
+    # Without a key the pipeline degrades to the same place anyway, so the flags are a
+    # way to be explicit rather than a separate code path.
+    if getattr(args, "no_llm", False) or getattr(args, "offline", False):
         settings.anthropic_api_key = None
+    if getattr(args, "offline", False):
         settings.search_provider = getattr(args, "provider", None) or "mock"
     return settings
 

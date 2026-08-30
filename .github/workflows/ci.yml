@@ -25,6 +25,9 @@ jobs:
       - name: Test
         run: pytest -q
 
+      # tests/test_secrets.py fails the build if a real credential reaches
+      # .env.example, which is a tracked file and therefore pushed.
+
       # The offline corpus needs no API keys, so the eval set runs on every push.
       # It gates groundedness, citation validity, flag recall and the per-stage
       # latency budgets; live latency numbers still require a real provider.

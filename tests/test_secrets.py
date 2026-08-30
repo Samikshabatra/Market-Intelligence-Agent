@@ -1,0 +1,56 @@
+"""Guard against committing a real credential.
+
+`.env.example` is tracked, so a real key pasted into it goes straight to the remote.
+This test exists because that happened once.
+"""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+import pytest
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+# Values that are obviously placeholders rather than credentials.
+PLACEHOLDER = re.compile(r"^(|\.\.\.|<.*>|your-.*|.*\.\.\.)$")
+
+# Provider key prefixes, with the length a real key of that kind exceeds.
+KEY_SHAPES: tuple[tuple[str, int], ...] = (
+    ("sk-ant-", 20),
+    ("tvly-", 20),
+    ("sk-", 20),
+    ("ghp_", 20),
+    ("AKIA", 16),
+)
+
+
+def env_example_values() -> list[tuple[str, str]]:
+    path = REPO_ROOT / ".env.example"
+    pairs = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        pairs.append((key.strip(), value.strip()))
+    return pairs
+
+
+@pytest.mark.parametrize("name,value", env_example_values())
+def test_env_example_holds_only_placeholders(name: str, value: str):
+    if PLACEHOLDER.match(value):
+        return
+    for prefix, min_length in KEY_SHAPES:
+        assert not (value.startswith(prefix) and len(value) > min_length), (
+            f".env.example {name} looks like a real credential. Put it in .env "
+            f"(untracked) instead - .env.example is committed and pushed."
+        )
+
+
+def test_env_is_not_tracked():
+    """.env must stay untracked; .gitignore is the only thing standing between a real
+    key and the remote."""
+    ignore = (REPO_ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert ".env" in [line.strip() for line in ignore]
