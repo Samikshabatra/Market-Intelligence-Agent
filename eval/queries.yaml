@@ -1,0 +1,147 @@
+# 25-query evaluation set (spec section 7.1).
+#
+# Categories map to the five behaviours the set has to exercise:
+#   comparison       - direct competitor comparisons
+#   pricing          - pricing / positioning lookups
+#   recent           - news, funding, product launches (recency-sensitive)
+#   sparse           - ambiguous or thin-data queries; should trigger fallback and flags
+#   conflicting      - queries where public sources are known to disagree
+#
+# `expect_flag: true` means the correct behaviour is an explicit low-confidence or
+# conflicting flag, NOT a confident answer. The harness scores those queries on whether
+# the agent declined to assert, which is how fallback precision is measured.
+
+- id: q01
+  category: comparison
+  query: How does Notion position against Coda for mid-market knowledge management?
+  focus_sections: [positioning, strengths, weaknesses]
+
+- id: q02
+  category: comparison
+  query: Compare Ramp and Brex on corporate card features for companies of 200-1000 employees.
+  focus_sections: [positioning, pricing, strengths]
+
+- id: q03
+  category: comparison
+  query: How does Datadog compare to Grafana Labs in observability for cloud-native teams?
+  focus_sections: [positioning, pricing, market_signals]
+
+- id: q04
+  category: comparison
+  query: Figma versus Adobe XD - who wins in enterprise product design workflows?
+  focus_sections: [positioning, strengths, weaknesses]
+
+- id: q05
+  category: comparison
+  query: How does Vanta differentiate from Drata in SOC 2 compliance automation?
+  focus_sections: [positioning, strengths]
+
+- id: q06
+  category: pricing
+  query: What does Linear cost per seat and how does that compare to Jira?
+  focus_sections: [pricing, positioning]
+
+- id: q07
+  category: pricing
+  query: Summarise Snowflake's pricing model and the main criticisms of it.
+  focus_sections: [pricing, weaknesses]
+
+- id: q08
+  category: pricing
+  query: How is Retool priced for enterprise customers?
+  focus_sections: [pricing]
+
+- id: q09
+  category: pricing
+  query: What is Stripe's fee structure for mid-market SaaS businesses?
+  focus_sections: [pricing, positioning]
+
+- id: q10
+  category: pricing
+  query: How does Cloudflare position its enterprise tier against Akamai on price?
+  focus_sections: [pricing, positioning]
+
+- id: q11
+  category: recent
+  query: What has Anthropic announced in the last six months?
+  focus_sections: [recent_moves, market_signals]
+
+- id: q12
+  category: recent
+  query: What was Perplexity's most recent funding round and valuation?
+  focus_sections: [recent_moves, market_signals]
+
+- id: q13
+  category: recent
+  query: Which companies has Databricks acquired recently and why?
+  focus_sections: [recent_moves, market_signals]
+
+- id: q14
+  category: recent
+  query: What product launches did Vercel ship this year?
+  focus_sections: [recent_moves]
+
+- id: q15
+  category: recent
+  query: Is Canva hiring aggressively for enterprise sales roles right now?
+  focus_sections: [market_signals, recent_moves]
+
+- id: q16
+  category: sparse
+  query: How does Zeitwerk Analytics position against its competitors?
+  expect_flag: true
+  focus_sections: [positioning, company_overview]
+
+- id: q17
+  category: sparse
+  query: What is the pricing of a seed-stage warehouse robotics startup in Estonia?
+  expect_flag: true
+  focus_sections: [pricing]
+
+- id: q18
+  category: sparse
+  query: What are the weaknesses of internal tooling at a private 40-person logistics firm?
+  expect_flag: true
+  focus_sections: [weaknesses]
+
+- id: q19
+  category: sparse
+  query: Which vendor leads the market for offline-first CRDT sync in industrial IoT?
+  expect_flag: true
+  focus_sections: [positioning, market_signals]
+
+- id: q20
+  category: sparse
+  query: How much revenue does a typical bootstrapped developer-tools company make?
+  expect_flag: true
+  focus_sections: [market_signals]
+
+- id: q21
+  category: conflicting
+  query: What is OpenAI's current annualised revenue?
+  expect_flag: true
+  focus_sections: [market_signals, company_overview]
+
+- id: q22
+  category: conflicting
+  query: How many employees does SpaceX have?
+  expect_flag: true
+  focus_sections: [company_overview, market_signals]
+
+- id: q23
+  category: conflicting
+  query: What market share does Salesforce hold in CRM?
+  expect_flag: true
+  focus_sections: [market_signals, positioning]
+
+- id: q24
+  category: conflicting
+  query: What is Shein's valuation?
+  expect_flag: true
+  focus_sections: [market_signals]
+
+- id: q25
+  category: conflicting
+  query: How much does Palantir charge a mid-market customer per year?
+  expect_flag: true
+  focus_sections: [pricing]

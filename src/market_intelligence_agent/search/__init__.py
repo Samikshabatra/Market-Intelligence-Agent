@@ -28,5 +28,8 @@ def build_provider(settings: Settings) -> SearchProvider:
             timeout=settings.per_request_timeout_seconds,
         )
     if provider == "mock":
-        return MockSearchProvider(results_per_query=settings.results_per_subquestion)
+        return MockSearchProvider(
+            corpus_path=settings.mock_corpus_path,
+            results_per_query=settings.results_per_subquestion,
+        )
     raise SearchError(f"Unknown search provider: {settings.search_provider!r}")

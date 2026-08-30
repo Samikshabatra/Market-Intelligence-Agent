@@ -197,9 +197,15 @@ def extract_subject(query: str) -> str:
     proper = [p for p in proper if p not in ignored]
     if proper:
         return " ".join(proper[:2])
+    # No proper nouns (e.g. "revenue of a typical bootstrapped devtools company"): keep
+    # the longest content words, which carry more search signal than the leading ones,
+    # but return them in their original order so the query still reads naturally.
     cleaned = _QUERY_NOISE.sub(" ", query)
-    words = [w for w in cleaned.split() if len(w) > 2]
-    return " ".join(words[:2]) if words else query[:40]
+    words = [w.strip("?.,") for w in cleaned.split() if len(w) > 3]
+    if not words:
+        return query[:40]
+    distinctive = sorted(words, key=len, reverse=True)[:2]
+    return " ".join(w for w in words if w in distinctive)
 
 
 def heuristic_plan(query: str, settings: Settings) -> SearchPlan:

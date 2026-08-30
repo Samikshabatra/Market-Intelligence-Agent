@@ -75,11 +75,21 @@ class MockSearchProvider(SearchProvider):
     # ------------------------------------------------------------------ internals
 
     def _match_fixture(self, query: str) -> list[dict] | None:
+        """Exact key, then substring, then token overlap.
+
+        The token pass matters because the planner rewrites a user question into its own
+        search strings; a fixture keyed on the topic still has to match those rewrites.
+        """
         if query in self._fixtures:
             return self._fixtures[query]
         needle = query.lower().strip()
         for key, value in self._fixtures.items():
             if key.lower().strip() in needle or needle in key.lower().strip():
+                return value
+        query_tokens = set(re.findall(r"[a-z0-9-]{3,}", needle))
+        for key, value in self._fixtures.items():
+            key_tokens = set(re.findall(r"[a-z0-9-]{3,}", key.lower()))
+            if key_tokens and len(key_tokens & query_tokens) / len(key_tokens) >= 0.6:
                 return value
         return None
 

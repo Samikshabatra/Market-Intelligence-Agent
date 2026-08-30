@@ -82,6 +82,9 @@ class Settings:
 
     # --- search ------------------------------------------------------------
     search_provider: str = "tavily"
+    # Optional JSON corpus for the mock provider, so offline runs can model sparse
+    # and conflicting queries instead of always returning rich synthetic evidence.
+    mock_corpus_path: str | None = None
     results_per_subquestion: int = 5
     min_distinct_domains: int = 5
     max_sources: int = 24
@@ -118,6 +121,7 @@ class Settings:
             tavily_api_key=os.getenv("TAVILY_API_KEY"),
             model=os.getenv("MIA_MODEL", "claude-opus-5"),
             search_provider=os.getenv("MIA_SEARCH_PROVIDER", "tavily"),
+            mock_corpus_path=os.getenv("MIA_MOCK_CORPUS"),
             total_budget_seconds=_env_float("MIA_TOTAL_BUDGET_SECONDS", 60.0),
             confidence_threshold=_env_float("MIA_CONFIDENCE_THRESHOLD", 0.55),
             min_distinct_domains=_env_int("MIA_MIN_DISTINCT_DOMAINS", 5),

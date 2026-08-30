@@ -31,8 +31,22 @@ _HEDGE_PATTERNS = re.compile(
     re.IGNORECASE,
 )
 
-# Numeric disagreement across sources is the most common conflict in pricing queries.
-_MONEY = re.compile(r"\$\s?([0-9][0-9,]*(?:\.[0-9]+)?)")
+# Numeric disagreement across sources is the most common conflict in market research:
+# money for pricing and valuation queries, percentages for market share, and plain large
+# magnitudes for headcount. Each family is compared only against its own kind, so "$45
+# billion" is never compared with "22,000 employees".
+_MONEY = re.compile(r"\$\s?([0-9][0-9,]*(?:\.[0-9]+)?)\s*(billion|million|bn|m|k)?", re.IGNORECASE)
+_PERCENT = re.compile(r"([0-9]+(?:\.[0-9]+)?)\s?(?:%|per ?cent)", re.IGNORECASE)
+_MAGNITUDE = re.compile(
+    r"\b([0-9][0-9,]{2,}(?:\.[0-9]+)?)\s*(?:\+)?\s*"
+    r"(?:employees|staff|people|customers|users|headcount)",
+    re.IGNORECASE,
+)
+_SCALE = {"k": 1e3, "m": 1e6, "bn": 1e9, "million": 1e6, "billion": 1e9}
+
+# A figure has to differ by more than this to count as a real disagreement rather than
+# rounding or a reporting-window difference.
+CONFLICT_TOLERANCE = 0.25
 
 
 @dataclass(slots=True)
@@ -166,20 +180,35 @@ class ConfidenceScorer:
         return penalty
 
     @staticmethod
-    def _has_numeric_conflict(sources: list[SourceRecord]) -> bool:
-        """True when different domains quote materially different figures."""
-        by_domain: dict[str, set[float]] = {}
+    def _extract_figures(passage: str) -> dict[str, set[float]]:
+        """Figures in the passage, bucketed by family so unlike quantities never clash."""
+        figures: dict[str, set[float]] = {"money": set(), "percent": set(), "magnitude": set()}
+        for amount, unit in _MONEY.findall(passage):
+            value = float(amount.replace(",", "")) * _SCALE.get((unit or "").lower(), 1.0)
+            figures["money"].add(value)
+        for amount in _PERCENT.findall(passage):
+            figures["percent"].add(float(amount))
+        for amount in _MAGNITUDE.findall(passage):
+            figures["magnitude"].add(float(amount.replace(",", "")))
+        return figures
+
+    @classmethod
+    def _has_numeric_conflict(cls, sources: list[SourceRecord]) -> bool:
+        """True when two or more domains quote materially different figures of one kind."""
+        by_family: dict[str, dict[str, set[float]]] = {}
         for source in sources:
-            values = {float(m.replace(",", "")) for m in _MONEY.findall(source.passage)}
-            if values:
-                by_domain.setdefault(source.domain, set()).update(values)
-        if len(by_domain) < 2:
-            return False
-        all_values = sorted({v for values in by_domain.values() for v in values})
-        if len(all_values) < 2:
-            return False
-        low, high = all_values[0], all_values[-1]
-        return low > 0 and (high - low) / low > 0.25
+            for family, values in cls._extract_figures(source.passage).items():
+                if values:
+                    by_family.setdefault(family, {}).setdefault(source.domain, set()).update(values)
+
+        for by_domain in by_family.values():
+            if len(by_domain) < 2:
+                continue
+            all_values = sorted({v for values in by_domain.values() for v in values})
+            low, high = all_values[0], all_values[-1]
+            if low > 0 and (high - low) / low > CONFLICT_TOLERANCE:
+                return True
+        return False
 
 
 class FallbackController:

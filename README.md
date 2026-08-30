@@ -38,9 +38,24 @@ mia run "..." --provider mock          # offline, fixture-backed
 ## Evaluate
 
 ```bash
-mia eval --set eval/queries.yaml --out eval/runs/
-mia eval --set eval/queries.yaml --ablation      # fallback on vs. off
+mia eval --ablation                          # live: needs both API keys
+MIA_MOCK_CORPUS=eval/fixtures/offline_corpus.json mia eval --offline --ablation
 ```
+
+The 25-query set spans direct comparisons, pricing lookups, recency-sensitive news,
+deliberately sparse queries and queries whose public sources are known to disagree.
+The last two groups are marked `expect_flag: true`: the correct behaviour there is to
+decline to assert, and the harness scores that as **flag recall**.
+
+Metrics per run: groundedness, citation validity, source diversity, latency (mean and
+p90), flag recall/precision and mean fallback rounds. Accuracy is human-reviewed - the
+harness writes a `rubric.csv` skeleton rather than guessing a score. `--ablation` runs
+the whole set twice, fallback on and off, and writes `ablation.md`.
+
+Offline runs use a fixture corpus so sparse and conflicting behaviour can be exercised
+without network access. Because that corpus is static, the ablation deltas are near
+zero offline - it verifies wiring, not reliability. Run it against Tavily for a real
+uplift number.
 
 ## Layout
 
