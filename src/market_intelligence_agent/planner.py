@@ -234,6 +234,40 @@ def heuristic_plan(query: str, settings: Settings) -> SearchPlan:
     )
 
 
+def seed_plan(query: str) -> SearchPlan:
+    """A two-step plan runnable before the real plan exists.
+
+    It exists purely to overlap retrieval with the planning model call: the raw query
+    and a broad overview query are almost always worth running whatever the planner
+    later decides, and the executor's dedupe makes any overlap free.
+    """
+    subject = extract_subject(query)
+    return SearchPlan(
+        query=query,
+        subject=subject,
+        complexity="simple",
+        sub_questions=[
+            SubQuestion(
+                id="seed1",
+                question=query,
+                search_query=query,
+                source_kind="other",
+                target_sections=["company_overview", "positioning"],
+                rationale="Seed search: runs during planning so that time is not dead air.",
+            ),
+            SubQuestion(
+                id="seed2",
+                question=f"What is {subject} and who does it compete with?",
+                search_query=f"{subject} overview competitors",
+                source_kind="other",
+                target_sections=["company_overview", "positioning", "market_signals"],
+                rationale="Seed search: broad context that almost any plan would want.",
+            ),
+        ],
+        round_index=0,
+    )
+
+
 def heuristic_replan(
     query: str,
     previous: SearchPlan,

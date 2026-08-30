@@ -83,9 +83,27 @@ def render_evidence(records: list[SourceRecord]) -> str:
 class BriefSynthesizer:
     """Turns the evidence store into a structured brief with enforced citations."""
 
+    # Ordered cheapest-last, so degrade_effort() always steps down and never up.
+    _EFFORT_LADDER = ("max", "xhigh", "high", "medium", "low")
+
     def __init__(self, llm: LLMClient, settings: Settings) -> None:
         self._llm = llm
         self._settings = settings
+        self._effort = settings.synthesizer_effort
+
+    def degrade_effort(self) -> str:
+        """Step synthesis effort down one rung. Called when the run is behind schedule."""
+        ladder = self._EFFORT_LADDER
+        if self._effort in ladder:
+            index = ladder.index(self._effort)
+            self._effort = ladder[min(index + 1, len(ladder) - 1)]
+        else:
+            self._effort = ladder[-1]
+        return self._effort
+
+    def reset_effort(self) -> None:
+        """Restore the configured effort. The agent instance is reused across queries."""
+        self._effort = self._settings.synthesizer_effort
 
     async def synthesize(
         self,
@@ -111,7 +129,7 @@ class BriefSynthesizer:
                 _BriefDraft,
                 system=SYNTHESIZER_SYSTEM,
                 user=prompt,
-                effort=self._settings.synthesizer_effort,
+                effort=self._effort,
                 max_tokens=8000,
                 timeout=timeout,
             )

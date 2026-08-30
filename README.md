@@ -71,7 +71,14 @@ uplift number.
 
 ## Status
 
-Milestone progress is tracked in [`docs/MILESTONES.md`](docs/MILESTONES.md).
+All six milestones from the spec are implemented; 68 tests pass.
+Milestone detail is in [`docs/MILESTONES.md`](docs/MILESTONES.md) and the latency
+work in [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md).
+
+Reported numbers so far come from the offline fixture corpus, which performs no I/O:
+groundedness 1.0, citation validity 1.0, domain floor 1.0 on answerable queries,
+flag recall 0.8. Those verify behaviour, not speed or real-world accuracy - live
+latency and the fallback uplift need a run against Tavily and the Anthropic API.
 
 ## License
 

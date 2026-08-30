@@ -33,6 +33,15 @@ TARGET_DOMAIN_FLOOR_RATE = 0.8     # >=80% of *answerable* queries reach the 5-d
 TARGET_P90_LATENCY_S = 60.0
 TARGET_FLAG_RECALL = 0.8           # >=80% of expect_flag queries must decline to assert
 
+# Per-stage budgets from section 6 of the spec, checked at p90.
+STAGE_BUDGETS_S = {
+    "planning": 5.0,
+    "search": 25.0,
+    "grounding": 10.0,
+    "fallback": 15.0,
+    "synthesis": 5.0,
+}
+
 
 @dataclass
 class QuerySpec:
@@ -62,6 +71,11 @@ class QueryMetrics:
     expect_flag: bool
     correct_flag_behaviour: bool
     budget_exceeded: bool
+    planning_s: float = 0.0
+    search_s: float = 0.0
+    grounding_s: float = 0.0
+    fallback_s: float = 0.0
+    synthesis_s: float = 0.0
     accuracy: float | None = None
 
 
@@ -80,6 +94,7 @@ class SuiteReport:
     flag_recall: float
     flag_precision: float
     mean_sections_asserted: float
+    stage_p90_s: dict[str, float]
     passed: bool
     failures: list[str] = field(default_factory=list)
     per_query: list[QueryMetrics] = field(default_factory=list)
@@ -138,6 +153,11 @@ def score_result(spec: QuerySpec, result: AgentResult) -> QueryMetrics:
         expect_flag=spec.expect_flag,
         correct_flag_behaviour=(declined == spec.expect_flag) if spec.expect_flag else not declined,
         budget_exceeded=result.budget_exceeded,
+        planning_s=result.timings.planning_ms / 1000,
+        search_s=result.timings.search_ms / 1000,
+        grounding_s=result.timings.grounding_ms / 1000,
+        fallback_s=result.timings.fallback_ms / 1000,
+        synthesis_s=result.timings.synthesis_ms / 1000,
     )
 
 
@@ -183,6 +203,10 @@ def summarise(variant: str, metrics: list[QueryMetrics], started_at: str) -> Sui
         mean_sections_asserted=round(
             statistics.fmean([m.sections_asserted for m in metrics]), 2
         ) if metrics else 0.0,
+        stage_p90_s={
+            stage: round(percentile([getattr(m, f"{stage}_s") for m in metrics], 0.9), 2)
+            for stage in ("planning", "search", "grounding", "fallback", "synthesis")
+        },
         passed=True,
         per_query=metrics,
     )
@@ -201,6 +225,10 @@ def summarise(variant: str, metrics: list[QueryMetrics], started_at: str) -> Sui
         report.failures.append(f"p90 latency {report.p90_latency_s}s > {TARGET_P90_LATENCY_S}s")
     if report.flag_recall < TARGET_FLAG_RECALL:
         report.failures.append(f"flag recall {report.flag_recall} < {TARGET_FLAG_RECALL}")
+    for stage, budget in STAGE_BUDGETS_S.items():
+        observed = report.stage_p90_s.get(stage, 0.0)
+        if observed > budget:
+            report.failures.append(f"{stage} p90 {observed}s > {budget}s budget")
     report.passed = not report.failures
     return report
 
@@ -326,7 +354,15 @@ async def run_evaluation(
         f"domains(mean)={full.mean_distinct_domains} "
         f"flag_recall={full.flag_recall}"
     )
-    print(f"Suite {'PASSED' if full.passed else 'FAILED'} in {time.perf_counter() - started:.1f}s")
+    print("\nStage p90 vs. section 6 budget:")
+    for stage, budget in STAGE_BUDGETS_S.items():
+        observed = full.stage_p90_s.get(stage, 0.0)
+        mark = "ok " if observed <= budget else "OVER"
+        print(f"  {mark} {stage:<10} {observed:6.2f}s / {budget:>5.1f}s")
+    print(
+        f"\nSuite {'PASSED' if full.passed else 'FAILED'} "
+        f"in {time.perf_counter() - started:.1f}s"
+    )
     for failure in full.failures:
         print(f"  - {failure}")
     print(f"Artifacts in {out_dir.resolve()}")

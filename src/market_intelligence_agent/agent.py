@@ -17,7 +17,7 @@ from .evidence import EvidenceStore
 from .executor import ExecutionReport, SearchExecutor
 from .llm import LLMClient
 from .models import SECTION_NAMES, AgentResult, SearchPlan, StageTimings
-from .planner import Planner
+from .planner import Planner, seed_plan
 from .search import SearchProvider, build_provider
 from .synthesizer import BriefSynthesizer
 
@@ -50,9 +50,18 @@ class MarketIntelligenceAgent:
         store = EvidenceStore()
         executor = SearchExecutor(self._provider, self.settings)
         result = AgentResult(query=query)
+        # One agent instance serves many queries, so a previous run's degradation must
+        # not silently lower quality for the next one.
+        self._synthesizer.reset_effort()
 
         # --- 1. plan ------------------------------------------------------
+        # Planning is a model call that spends up to 5s of the budget doing no retrieval.
+        # A seed search on the raw query runs concurrently, so that time buys sources
+        # instead of being dead air. Executor dedupe makes any overlap with the real plan
+        # free, and a failed seed costs nothing.
         stage = time.perf_counter()
+        seed = seed_plan(query)
+        seed_task = asyncio.create_task(executor.run(seed, deadline=deadline, round_index=0))
         plan = await self._planner.plan(
             query, timeout=self._slice(deadline, self.settings.planning_budget_seconds)
         )
@@ -62,8 +71,11 @@ class MarketIntelligenceAgent:
         # --- 2. search + 3. ground ---------------------------------------
         stage = time.perf_counter()
         report = await executor.run(plan, deadline=deadline, round_index=0)
+        seed_report = await seed_task
         timings.search_ms = (time.perf_counter() - stage) * 1000
         self._ingest(store, plan, report)
+        self._ingest(store, seed, seed_report)
+        report.errors.extend(seed_report.errors)
 
         # --- 4. score -----------------------------------------------------
         stage = time.perf_counter()
@@ -104,7 +116,15 @@ class MarketIntelligenceAgent:
             logger.debug("no fallback round: %s", decision.reason)
 
         # --- 5. synthesise ------------------------------------------------
+        # Synthesis is the one stage that cannot be skipped, so when the earlier stages
+        # have eaten the budget it degrades effort rather than overrunning: a terser
+        # brief inside 60s beats a better one that misses the target.
         stage = time.perf_counter()
+        if self._seconds_left(deadline) < self.settings.synthesis_budget_seconds * 2:
+            self._synthesizer.degrade_effort()
+            result.unverified_flags.append(
+                "synthesis ran at reduced effort to stay inside the latency budget"
+            )
         brief, conflicts = await self._synthesizer.synthesize(
             query, store, timeout=self._slice(deadline, self.settings.synthesis_budget_seconds)
         )
