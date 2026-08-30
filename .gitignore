@@ -15,6 +15,7 @@ env/
 .coverage
 htmlcov/
 eval/runs/
+image.png
 out/
 runs/
 *.log
