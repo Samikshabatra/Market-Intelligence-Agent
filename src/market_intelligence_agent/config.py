@@ -49,6 +49,19 @@ DEFAULT_AUTHORITY_TIERS: dict[str, float] = {
 }
 
 
+def _env_key(name: str) -> str | None:
+    """Read a credential, treating a leftover template placeholder as absent.
+
+    Copying .env.example to .env leaves values like "sk-ant-..." in place. Those are
+    truthy, so without this the agent reports a model as configured, calls it, and
+    only discovers the 401 mid-run.
+    """
+    value = (os.getenv(name) or "").strip()
+    if not value or value.endswith("...") or value.startswith("<"):
+        return None
+    return value
+
+
 def _env_float(name: str, default: float) -> float:
     raw = os.getenv(name)
     if raw is None or raw.strip() == "":
@@ -117,8 +130,8 @@ class Settings:
         """Build settings from a ``.env`` file / process environment, then apply overrides."""
         load_dotenv(override=False)
         settings = cls(
-            anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
-            tavily_api_key=os.getenv("TAVILY_API_KEY"),
+            anthropic_api_key=_env_key("ANTHROPIC_API_KEY"),
+            tavily_api_key=_env_key("TAVILY_API_KEY"),
             model=os.getenv("MIA_MODEL", "claude-opus-5"),
             search_provider=os.getenv("MIA_SEARCH_PROVIDER", "tavily"),
             mock_corpus_path=os.getenv("MIA_MOCK_CORPUS"),

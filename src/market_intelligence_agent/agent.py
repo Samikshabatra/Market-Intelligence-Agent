@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Callable
 
 from .confidence import ConfidenceScorer, FallbackController, SectionAssessment
 from .config import Settings
@@ -22,6 +23,22 @@ from .search import SearchProvider, build_provider
 from .synthesizer import BriefSynthesizer
 
 logger = logging.getLogger(__name__)
+
+# Pipeline stages, in the order a run moves through them. The UI renders this list
+# directly, so the names here are what a user sees.
+STAGES: tuple[tuple[str, str], ...] = (
+    ("plan", "Interpreting the query and planning research"),
+    ("search", "Searching company, news, review and funding sources"),
+    ("ground", "Binding claims to source passages"),
+    ("verify", "Scoring confidence and cross-checking evidence"),
+    ("synthesize", "Building the competitor brief"),
+)
+
+ProgressHook = Callable[[str, str, dict], None]
+
+
+def _noop_progress(stage: str, status: str, detail: dict) -> None:
+    return None
 
 
 class MarketIntelligenceAgent:
@@ -43,7 +60,13 @@ class MarketIntelligenceAgent:
         self._controller = FallbackController(self.settings)
         self._synthesizer = BriefSynthesizer(self._llm, self.settings)
 
-    async def run(self, query: str) -> AgentResult:
+    async def run(self, query: str, *, on_progress: ProgressHook | None = None) -> AgentResult:
+        """Execute one research run.
+
+        `on_progress(stage, status, detail)` is called as each stage starts and ends,
+        so a caller can stream real pipeline state rather than a fake progress bar.
+        """
+        emit = on_progress or _noop_progress
         started = time.perf_counter()
         deadline = time.monotonic() + self.settings.total_budget_seconds
         timings = StageTimings()
@@ -68,6 +91,7 @@ class MarketIntelligenceAgent:
         # A seed search on the raw query runs concurrently, so that time buys sources
         # instead of being dead air. Executor dedupe makes any overlap with the real plan
         # free, and a failed seed costs nothing.
+        emit("plan", "active", {})
         stage = time.perf_counter()
         seed = seed_plan(query)
         seed_task = asyncio.create_task(executor.run(seed, deadline=deadline, round_index=0))
@@ -76,6 +100,8 @@ class MarketIntelligenceAgent:
         )
         timings.planning_ms = (time.perf_counter() - stage) * 1000
         trace = list(plan.trace())
+        emit("plan", "done", {"sub_questions": trace, "subject": plan.subject})
+        emit("search", "active", {"queries": [sq.search_query for sq in plan.sub_questions]})
 
         # --- 2. search + 3. ground ---------------------------------------
         stage = time.perf_counter()
@@ -85,11 +111,19 @@ class MarketIntelligenceAgent:
         self._ingest(store, plan, report)
         self._ingest(store, seed, seed_report)
         report.errors.extend(seed_report.errors)
+        emit(
+            "search",
+            "done",
+            {"sources": len(store), "domains": len(store.distinct_domains())},
+        )
+        emit("ground", "active", {})
 
         # --- 4. score -----------------------------------------------------
         stage = time.perf_counter()
         assessments = self._score_all(store)
         timings.grounding_ms = (time.perf_counter() - stage) * 1000
+        emit("ground", "done", {"sources": len(store)})
+        emit("verify", "active", {})
 
         # --- 4b. bounded fallback round -----------------------------------
         decision = self._controller.decide(
@@ -123,6 +157,12 @@ class MarketIntelligenceAgent:
             timings.fallback_ms = (time.perf_counter() - stage) * 1000
         else:
             logger.debug("no fallback round: %s", decision.reason)
+        emit(
+            "verify",
+            "done",
+            {"fallback_rounds": result.fallback_rounds, "reason": decision.reason},
+        )
+        emit("synthesize", "active", {})
 
         # --- 5. synthesise ------------------------------------------------
         # Synthesis is the one stage that cannot be skipped, so when the earlier stages
@@ -169,6 +209,14 @@ class MarketIntelligenceAgent:
         result.timings = timings
         result.latency_ms = (time.perf_counter() - started) * 1000
         result.budget_exceeded = result.latency_ms > self.settings.total_budget_seconds * 1000
+        emit(
+            "synthesize",
+            "done",
+            {
+                "sections_asserted": sum(1 for _, s in brief.sections() if s.is_asserted()),
+                "latency_ms": result.latency_ms,
+            },
+        )
         return result
 
     # ------------------------------------------------------------------ helpers

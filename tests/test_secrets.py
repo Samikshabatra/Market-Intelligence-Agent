@@ -66,3 +66,15 @@ def test_env_is_not_tracked():
     key and the remote."""
     ignore = (REPO_ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
     assert ".env" in [line.strip() for line in ignore]
+
+
+def test_template_placeholders_are_not_mistaken_for_credentials(monkeypatch):
+    """Copying .env.example to .env leaves "sk-ant-..." in place. A placeholder must
+    read as no key at all, or the agent reports a model it cannot actually call."""
+    from market_intelligence_agent.config import Settings
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-...")
+    monkeypatch.setenv("TAVILY_API_KEY", "tvly-real-looking-key-000000000000")
+    settings = Settings.from_env()
+    assert settings.anthropic_api_key is None
+    assert settings.tavily_api_key == "tvly-real-looking-key-000000000000"

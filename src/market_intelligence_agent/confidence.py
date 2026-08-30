@@ -48,9 +48,12 @@ _SCALE = {"k": 1e3, "m": 1e6, "bn": 1e9, "million": 1e6, "billion": 1e9}
 # rounding or a reporting-window difference.
 CONFLICT_TOLERANCE = 0.25
 
-# A passage quoting more than this many distinct figures of one kind is a table or
-# leaderboard, not a claim about one subject, so it is excluded from conflict checks.
-TABULAR_FIGURE_LIMIT = 4
+# A passage quoting more than this many distinct figures of one kind is a price table,
+# tier list or leaderboard rather than a claim about one quantity, so it is excluded
+# from conflict checks. Kept deliberately tight: a pricing page listing four tiers is
+# not two sources disagreeing, and treating it as one flagged most of a brief as
+# conflicting, which drowns the real disagreements.
+TABULAR_FIGURE_LIMIT = 2
 
 
 @dataclass(slots=True)

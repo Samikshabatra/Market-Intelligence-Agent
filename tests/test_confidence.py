@@ -203,3 +203,16 @@ def test_two_genuine_figures_for_one_subject_still_conflict(settings: Settings):
         ],
     )
     assert assessment.conflicting
+
+
+def test_a_tier_list_is_not_a_disagreement(settings: Settings):
+    """Four price tiers on one page is not two sources contradicting each other."""
+    assessment = ConfidenceScorer(settings).score_section(
+        "pricing",
+        "Linear publishes four tiers.",
+        [
+            source("s1", "linear.app", "Free $0, Basic $8, Business $14, Enterprise custom."),
+            source("s2", "g2.com", "Plans run from $8 to $14 per user per month."),
+        ],
+    )
+    assert not assessment.conflicting

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Market Intelligence Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="shell">
+  <nav class="rail" aria-label="Sections">
+    <div class="rail__mark">MI</div>
+    <button class="rail__btn" data-nav="home" title="Home" aria-label="Home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 10.5 12 4l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
+    </button>
+    <button class="rail__btn" data-nav="new" title="New research" aria-label="New research">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2M11 8.5v5M8.5 11h5"/></svg>
+    </button>
+    <button class="rail__btn" data-nav="history" title="Research history" aria-label="Research history">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+    </button>
+    <div class="rail__spacer"></div>
+    <button class="rail__btn" data-nav="about" title="How this works" aria-label="How this works">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5"/><circle cx="12" cy="8" r=".6" fill="currentColor"/></svg>
+    </button>
+  </nav>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar__crumb" id="crumb"></div>
+      <div class="topbar__actions" id="topActions"></div>
+    </div>
+    <div id="view"></div>
+  </main>
+</div>
+
+<template id="tpl-contour">
+  <svg class="contour" viewBox="0 0 400 320" aria-hidden="true" focusable="false">
+    <g>
+      <path d="M20 250c60-10 90-60 140-70s90 20 140-30"/>
+      <path d="M20 224c62-12 92-58 142-68s92 20 138-34"/>
+      <path d="M20 198c64-14 94-56 144-66s94 20 136-38"/>
+      <path d="M20 172c66-16 96-54 146-64s96 20 134-42"/>
+      <path d="M20 146c68-18 98-52 148-62s98 20 132-46"/>
+      <path d="M20 120c70-20 100-50 150-60s100 20 130-50"/>
+      <path d="M20 94c72-22 102-48 152-58s102 20 128-54"/>
+    </g>
+  </svg>
+</template>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

@@ -57,6 +57,23 @@ synthesises, and cannot reconcile two sources into one sentence. Every such run 
 an explicit flag saying so, so an extractive brief is never mistaken for a synthesised
 one.
 
+## Web interface
+
+```bash
+pip install -e ".[web]"
+mia-web                       # http://127.0.0.1:8000
+```
+
+Ask a question, watch the pipeline run stage by stage over a live event stream, and read
+the brief with its evidence. Four views on a result: **Executive summary** (the seven
+sections with confidence and status), **Evidence** (per-claim confidence breakdown and
+the passages behind it), **Sources** (every retrieved page), **Search plan** (the steps
+the agent chose and where the time went).
+
+The progress screen is not a spinner - each stage reports when the agent actually enters
+and leaves it, with the counts it produced. Runs are written to `runs/` and listed under
+Research history.
+
 ## Evaluate
 
 ```bash
