@@ -100,18 +100,28 @@ class MockSearchProvider(SearchProvider):
 
     def _synthesise(self, query: str, max_results: int) -> list[SearchResult]:
         slug = _slug(query)
+        # Rotate the domain window per query so sibling sub-questions surface different
+        # domains, the way real searches do - otherwise cross-query dedupe would collapse
+        # a whole plan down to one sub-question's worth of sources.
+        offset = int(_stable_float(query) * len(_SYNTHETIC_DOMAINS))
+        window = [
+            _SYNTHETIC_DOMAINS[(offset + i) % len(_SYNTHETIC_DOMAINS)]
+            for i in range(min(max_results, len(_SYNTHETIC_DOMAINS)))
+        ]
+        fingerprint = f"{int(_stable_float(query) * 1_000_000):06d}"
         results: list[SearchResult] = []
-        for index, (template, label, age_days) in enumerate(_SYNTHETIC_DOMAINS[:max_results]):
+        for index, (template, label, age_days) in enumerate(window):
             domain = template.format(slug=slug)
             jitter = _stable_float(query, domain)
             results.append(
                 SearchResult(
-                    url=f"https://{domain}/{slug}/{index}",
+                    url=f"https://{domain}/{slug}/{fingerprint}-{index}",
                     title=f"{label}: {query}",
                     content=(
                         f"{label} coverage relevant to '{query}'. "
-                        f"Synthetic passage {index} generated offline for {domain}; "
-                        "it carries no real-world facts and exists to exercise the pipeline."
+                        f"Synthetic passage {fingerprint}-{index} generated offline for "
+                        f"{domain}; it carries no real-world facts and exists only to "
+                        "exercise the pipeline end to end."
                     ),
                     score=round(0.9 - 0.07 * index + 0.05 * jitter, 3),
                     published_at=self._now - timedelta(days=age_days + int(30 * jitter)),

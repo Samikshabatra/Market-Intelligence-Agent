@@ -48,9 +48,11 @@ def classify_source(domain: str, subject: str = "") -> SourceKind:
     for kind, patterns in _KIND_PATTERNS:
         if any(domain == p or domain.endswith("." + p) for p in patterns):
             return kind
-    if subject:
-        token = re.sub(r"[^a-z0-9]", "", subject.lower())
-        if token and token in domain.replace(".", "").replace("-", ""):
+    # A comparison query names several companies, so test each subject token on its own -
+    # "Ramp Brex" must still recognise ramp.com as a company site.
+    flattened = domain.replace(".", "").replace("-", "")
+    for token in re.findall(r"[a-z0-9]{3,}", subject.lower()):
+        if token in flattened:
             return "company_site"
     return "other"
 
@@ -142,11 +144,11 @@ class SearchExecutor:
 
         for sub_question, hits in gathered:
             for hit in hits:
+                if len(report.records) >= self._settings.max_sources:
+                    break
                 record = self._admit(hit, sub_question, plan.subject, round_index, report)
                 if record is not None:
                     report.records.append(record)
-                if len(report.records) >= self._settings.max_sources:
-                    break
 
         report.records.sort(key=lambda r: r.relevance, reverse=True)
         report.elapsed_ms = (time.perf_counter() - started) * 1000
